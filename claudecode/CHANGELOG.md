@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.68] - 2026-08-14
+
+### Fixed
+- The terminal returned 404 instead of loading. The OSC 52 page was installed to `/opt/ttyd/`, which the AppArmor profile does not grant read access to - it enumerates `/etc`, `/usr`, `/lib`, `/proc`, `/sys`, `/data`, `/homeassistant`, `/root` and `/tmp`, and nothing else. ttyd started fine but could not open the page it was told to serve, and answered 404. Both files now live under `/usr/share/ttyd/`, covered by the profile's existing `/usr/** r` rule, so no security policy change was needed. The startup check also uses `-r` rather than `-f`, so an unreadable page falls back to ttyd's built-in one with a warning instead of breaking the UI
+
 ## [1.2.67] - 2026-08-14
 
 ### Added
@@ -16,7 +21,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - Copying text in the terminal now reaches the clipboard of the machine running the browser, in both tmux and herdr. Previously every copy was silently discarded and pasting elsewhere returned the clipboard's previous contents
 
-  A program in a terminal reaches that clipboard through `OSC 52`, and ttyd only gained `@xterm/addon-clipboard` after 1.7.7, which is still its newest release - so ttyd parsed those sequences and dropped them. Instead of building ttyd from an unreleased commit, the image build fetches ttyd's own self-contained page, appends `rootfs/opt/ttyd/osc52.js` to it and serves the result with `--index`. The script registers an OSC 52 handler on the terminal and writes to the clipboard, falling back to the legacy copy path on plain `http://` origins, where the Clipboard API is unavailable because the page is not a secure context. Empty payloads are ignored rather than honoured as "clear the clipboard", so a stray click cannot discard what you copied. Clipboard *reads* (`OSC 52` with `?`) are refused, since any process in the terminal could otherwise exfiltrate the clipboard
+  A program in a terminal reaches that clipboard through `OSC 52`, and ttyd only gained `@xterm/addon-clipboard` after 1.7.7, which is still its newest release - so ttyd parsed those sequences and dropped them. Instead of building ttyd from an unreleased commit, the image build fetches ttyd's own self-contained page, appends `rootfs/usr/share/ttyd/osc52.js` to it and serves the result with `--index`. The script registers an OSC 52 handler on the terminal and writes to the clipboard, falling back to the legacy copy path on plain `http://` origins, where the Clipboard API is unavailable because the page is not a secure context. Empty payloads are ignored rather than honoured as "clear the clipboard", so a stray click cannot discard what you copied. Clipboard *reads* (`OSC 52` with `?`) are refused, since any process in the terminal could otherwise exfiltrate the clipboard
 
   Verified against the shipped versions: herdr copy-on-select and `tmux load-buffer -w` both land on the browser clipboard, over a secure origin and over a non-secure `http://` origin
 

@@ -61,7 +61,10 @@ RUN case "${BUILD_ARCH}" in \
 # until there is a release to upgrade to the handler is added client-side.
 # ttyd serves one self-contained page and takes a replacement via --index, so
 # the page is fetched from ttyd itself and the handler appended to it.
-COPY rootfs/opt/ttyd/osc52.js /opt/ttyd/osc52.js
+# Both files live under /usr/share, which the AppArmor profile already grants
+# read access to via /usr/** - ttyd cannot serve a page it is not allowed to
+# open, and the denial surfaces as a 404 rather than a startup error.
+COPY rootfs/usr/share/ttyd/osc52.js /usr/share/ttyd/osc52.js
 RUN set -e; \
     ttyd --port 7699 --interface 127.0.0.1 true & \
     TTYD_PID=$!; \
@@ -73,11 +76,11 @@ RUN set -e; \
     python3 -c "\
 import pathlib, sys;\
 html = pathlib.Path('/tmp/ttyd-index.html').read_text();\
-js = pathlib.Path('/opt/ttyd/osc52.js').read_text();\
+js = pathlib.Path('/usr/share/ttyd/osc52.js').read_text();\
 sys.exit('ttyd index.html has no </body> to inject into') if '</body>' not in html else None;\
-pathlib.Path('/opt/ttyd/index.html').write_text(html.replace('</body>', '<script>' + js + '</script></body>', 1))"; \
+pathlib.Path('/usr/share/ttyd/index.html').write_text(html.replace('</body>', '<script>' + js + '</script></body>', 1))"; \
     rm -f /tmp/ttyd-index.html; \
-    grep -q registerOscHandler /opt/ttyd/index.html
+    grep -q registerOscHandler /usr/share/ttyd/index.html
 
 # Install herdr, the optional alternative to tmux (terminal_multiplexer: herdr).
 # Upstream publishes statically linked musl binaries, so they run on the Alpine
@@ -355,8 +358,8 @@ CMD ["/bin/bash", "-c", "\
   if [ \"$REMOTE_CONTROL\" = \"true\" ]; then export CLAUDE_REMOTE_CONTROL_SESSION_NAME_PREFIX=\"$RC_SESSION_PREFIX\"; fi && \
   cd /homeassistant && \
   TTYD_INDEX=''; \
-  if [ -f /opt/ttyd/index.html ]; then \
-    TTYD_INDEX='--index /opt/ttyd/index.html'; \
+  if [ -r /usr/share/ttyd/index.html ]; then \
+    TTYD_INDEX='--index /usr/share/ttyd/index.html'; \
   else \
     echo '[WARN] OSC 52 clipboard support is missing - copy will not reach your computer'; \
   fi && \

@@ -244,7 +244,7 @@ Two details worth knowing:
 - Clipboard writes normally require a secure context, which Home Assistant over plain `http://` on a LAN address is not. The script falls back to the legacy copy path, which works there because the copy immediately follows the click that selected the text.
 - An empty OSC 52 officially means "clear the clipboard". The script ignores those, so a stray click cannot throw away what you copied.
 
-The script lives at [`rootfs/opt/ttyd/osc52.js`](rootfs/opt/ttyd/osc52.js). If a future ttyd release bundles `@xterm/addon-clipboard`, this can be dropped for a version bump.
+The script lives at [`rootfs/usr/share/ttyd/osc52.js`](rootfs/usr/share/ttyd/osc52.js) and is installed to `/usr/share/ttyd/`, which the AppArmor profile already allows ttyd to read. If a future ttyd release bundles `@xterm/addon-clipboard`, this can be dropped for a version bump.
 
 ### Scrolling and Session Persistence Trade-offs
 
