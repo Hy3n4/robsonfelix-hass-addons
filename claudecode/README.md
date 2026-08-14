@@ -219,16 +219,28 @@ Delete the file to get the add-on defaults back on the next start. Full referenc
 
 #### Copy and Paste in herdr
 
-Copy and paste are the browser's, so they behave like any other web page:
+**Pasting always works.** `Ctrl+V` / `Cmd+V` (or right-click → Paste) pastes your computer's clipboard into any pane, Claude Code included.
 
-| Action | How to do it |
-|--------|--------------|
-| **Copy** | Select with the mouse, then `Ctrl+C` / `Cmd+C`, or right-click → Copy |
-| **Paste** | `Ctrl+V` / `Cmd+V`, or right-click → Paste |
+**Copying depends on what has focus:**
 
-This works because the add-on ships herdr with `mouse_capture = false`. A program running inside a terminal can only reach your computer's clipboard through an escape sequence called OSC 52, and the ttyd this add-on ships (1.7.7, the latest release) has no clipboard addon to receive it — so if herdr owns the mouse, anything you "copy" never leaves the container and you paste whatever was in your clipboard before. Holding Shift while dragging does not help on macOS, where xterm.js only force-selects on Shift for non-Mac clients.
+| Focused pane | How to copy |
+|--------------|-------------|
+| Shell prompt | Select with the mouse, then `Ctrl+C` / `Cmd+C`, or right-click → Copy |
+| Claude Code, or any full-screen app that uses the mouse (`lazygit`, `btop`, `vim` with mouse on) | Not directly — see below |
 
-The cost is herdr's mouse UI: you cannot click the sidebar or wheel-scroll a pane. Everything is still reachable from the keyboard with `Ctrl+b`, and `Ctrl+b e` opens the full pane scrollback in an editor. If you would rather have the mouse UI than working copy/paste, put this in `herdr.toml` and restart:
+The add-on ships herdr with `mouse_capture = false` so the browser keeps the mouse and ordinary selection works. But herdr still hands the mouse to a pane application that asks for it, and Claude Code asks. While it has focus, selecting shows herdr's "Copied to clipboard" toast — and that copy is real, but it lands in herdr's clipboard *inside the container*. Getting it to your computer needs the OSC 52 escape sequence, and the ttyd this add-on ships (1.7.7, the newest release) has no clipboard addon to receive it, so the text never arrives and you paste whatever you had before. Holding Shift while dragging does not help on macOS either, where xterm.js only force-selects on Shift for non-Mac clients.
+
+The mouse grab is per pane, so a second pane is the way out. To copy something out of Claude Code:
+
+```bash
+# Ctrl+b v to split, then in the new shell pane:
+herdr pane list                       # find the Claude pane's id, e.g. w1:p1
+herdr pane read w1:p1 --source recent-unwrapped --lines 100
+```
+
+Select that output normally and `Cmd+C` — the shell pane does not take the mouse. `Ctrl+b e` also opens a pane's full scrollback in an editor.
+
+The other cost of `mouse_capture = false` is herdr's own mouse UI: no clicking the sidebar, no wheel scrolling. Everything stays reachable from the keyboard with `Ctrl+b`. If you would rather have the mouse UI, put this in `herdr.toml` and restart:
 
 ```toml
 [ui]
@@ -251,7 +263,8 @@ pane_scrollbars = true
 - ✅ Sidebar shows whether Claude is working, blocked or idle
 - ✅ Claude can drive panes and other agents through `herdr` / the socket API
 - ✅ Layout and scrollback come back on reattach
-- ✅ Normal browser copy/paste - no `Shift+Insert` gymnastics
+- ✅ Normal browser copy/paste at the shell - no `Shift+Insert` gymnastics
+- ⚠️ Copying out of Claude Code needs a second pane and `herdr pane read`
 - ⚠️ No mouse UI by default: keyboard (`Ctrl+b`) drives the sidebar and panes
 - ⚠️ No wheel scrolling; `Ctrl+b e` opens the scrollback in an editor
 - ⚠️ amd64 and aarch64 only
