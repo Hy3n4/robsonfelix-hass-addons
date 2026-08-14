@@ -1,0 +1,28 @@
+# Defaults shipped with the Claude Code add-on. This file is copied once to
+# /homeassistant/.claudecode/herdr.toml on first start and read from there, so
+# your edits survive restarts, rebuilds and reinstalls. Apply changes with
+# `herdr server reload-config`, or restart the add-on.
+#
+# Full reference: https://herdr.dev/docs/config-reference/
+
+# The web terminal has no place to complete a first-run notification setup.
+onboarding = false
+
+[terminal]
+# Panes must be login shells so /root/.profile -> /root/.bashrc runs and the
+# add-on aliases (c, cc, ha-config, ha-logs) exist inside them.
+default_shell = "/bin/bash"
+shell_mode = "login"
+
+[update]
+# The add-on ships a pinned herdr and replaces it on rebuild. Self-updating
+# would desync the client from the running server, so don't advertise updates.
+version_check = false
+
+[ui]
+# The Home Assistant sidebar panel is narrow; start with room for the terminal.
+sidebar_start_collapsed = true
+
+# Set to false to hand clicks back to the browser and get native selection and
+# copy/paste, at the cost of herdr's mouse UI.
+mouse_capture = true

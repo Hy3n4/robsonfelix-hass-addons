@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.66] - 2026-08-14
+
+### Added
+- `terminal_multiplexer` option, `tmux` (default) or `herdr`. It only applies when `session_persistence` is on, so existing installs keep the exact behaviour they have today
+
+  [herdr](https://herdr.dev) is a multiplexer built for coding agents: it recognises the Claude Code session in a pane and reports whether it is `working`, `blocked` or `idle`, and it exposes a CLI and socket API that Claude can drive from inside the session (`herdr agent list`, `herdr pane split`, `herdr pane run`). Session persistence, detach/reattach and the `Ctrl+b` prefix work the same as tmux.
+
+- herdr `v0.8.0` is installed to `/usr/local/bin/herdr` on `amd64` and `aarch64`. Upstream ships statically linked musl binaries, so they run on the Alpine base with no extra libraries. The version is pinned deliberately: herdr's client and server must speak the same protocol, and an unpinned download could replace the server under a running session
+- Defaults ship in `rootfs/root/.config/herdr/config.toml` and are copied once to `/homeassistant/.claudecode/herdr.toml`, which is then used via `HERDR_CONFIG_PATH`. Edits there survive restarts, rebuilds and reinstalls, mirroring how `tmux.conf` overrides work. Panes are login `bash` so the `c`, `cc`, `ha-config` and `ha-logs` aliases exist inside them, the sidebar starts collapsed to leave room in the Home Assistant panel, and herdr's own update check is off because the add-on pins the binary
+- Startup logs which multiplexer it selected
+
+### Changed
+- `session_persistence` is no longer described as a tmux-only switch in the UI and translations; it now toggles persistence regardless of which multiplexer runs it
+
+### Notes
+- Upstream publishes no herdr binaries for `armv7`, `armhf` or `i386`. Those builds log a warning and fall back to tmux instead of failing, the same way the Home Assistant CLI is skipped there
+- herdr keeps its session state and socket under `/root/.config/herdr`, which the AppArmor profile already allows; no profile change was needed
+
 ## [1.2.65] - 2026-07-08
 
 ### Security

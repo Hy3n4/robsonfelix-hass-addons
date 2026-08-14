@@ -39,9 +39,18 @@ configuration:
   session_persistence:
     name: Persistance de Session
     description: >-
-      Activez la persistance de la session tmux. Lorsqu'elle est activée, votre
-      session de terminal survit aux actualisations du navigateur et aux
+      Activez la persistance de la session du terminal. Lorsqu'elle est activée,
+      votre session de terminal survit aux actualisations du navigateur et aux
       déconnexions. Recommandé pour les tâches longues.
+  terminal_multiplexer:
+    name: Multiplexeur de Terminal
+    description: >-
+      Quel multiplexeur assure la persistance de session. « tmux » est la valeur
+      par défaut et fonctionne sur toutes les architectures. « herdr » est une
+      alternative consciente des agents qui indique si Claude travaille, est
+      bloqué ou inactif ; elle n'est disponible que sur amd64 et aarch64 et
+      revient à tmux ailleurs. S'applique uniquement si la Persistance de Session
+      est activée.
   auto_update_claude:
     name: Mise à Jour Automatique de Claude Code
     description: >-

@@ -21,7 +21,7 @@ claude "Why isn't my motion sensor automation working?"
 - **Web Terminal**: Access Claude Code through a browser-based terminal
 - **Config Access**: Read and write Home Assistant configuration files
 - **hass-mcp Integration**: Direct control of HA entities and services
-- **Session Persistence**: Optional tmux integration to preserve sessions across page refreshes
+- **Session Persistence**: Optional tmux or herdr integration to preserve sessions across page refreshes
 - **Customizable Theme**: Choose between dark and light terminal themes
 - **Multi-Architecture**: Supports amd64, aarch64, armv7, armhf, and i386
 - **Secure Authentication**: Claude Code handles its own authentication securely
@@ -100,7 +100,8 @@ claude --continue
 | `terminal_font_size` | Font size (10-24) | 14 |
 | `terminal_theme` | dark or light | dark |
 | `working_directory` | Start directory | /homeassistant |
-| `session_persistence` | Use tmux for persistent sessions | true |
+| `session_persistence` | Keep the terminal session alive across disconnects | true |
+| `terminal_multiplexer` | Which multiplexer provides persistence: `tmux` or `herdr` (amd64/aarch64 only) | tmux |
 | `auto_update_claude` | Auto-update Claude Code on startup (rolls back automatically if the new release cannot run) | true |
 | `enable_remote_control` | View and steer the session from claude.ai/code or the Claude mobile app. See the security note below | false |
 | `remote_control_session_prefix` | Prefix for auto-generated Remote Control session names | HomeAssistant |
@@ -123,11 +124,18 @@ With `enable_remote_control`, sessions can be driven from `claude.ai/code` or th
 
 ## Session Persistence
 
-When `session_persistence` is enabled, the add-on uses tmux to maintain your terminal session. This means:
+When `session_persistence` is enabled, the add-on keeps your terminal session alive in a multiplexer. This means:
 
 - Your session survives browser refreshes
 - You can disconnect and reconnect without losing context
 - Claude Code conversations are preserved
+
+`terminal_multiplexer` picks which one runs it:
+
+| Value | Notes |
+|-------|-------|
+| `tmux` (default) | Available on every architecture |
+| `herdr` | Agent-aware alternative, amd64 and aarch64 only; falls back to tmux elsewhere |
 
 ### tmux Commands
 
@@ -173,6 +181,45 @@ The authentication URL can be long and may wrap across multiple lines. To handle
 
 If clicking the link doesn't work, hold `Ctrl+Shift` while selecting the URL with your mouse to copy it, then paste it into your browser's address bar.
 
+### herdr
+
+Set `terminal_multiplexer: herdr` for a multiplexer built around coding agents. On top of what tmux gives you, herdr knows a Claude Code session is running in a pane and tracks whether it is working, blocked on a question, or idle - so a long task that stopped to ask for permission is visible in the sidebar instead of hiding in a pane you are not looking at.
+
+It also exposes a CLI and socket API from inside the session, which Claude itself can drive:
+
+```bash
+herdr agent list                  # what is running, and what state it is in
+herdr pane split --current --direction right --cwd "$PWD" --no-focus
+herdr pane run <pane-id> "ha core logs | tail -50"
+```
+
+Only amd64 and aarch64 are supported - upstream publishes no binaries for armv7, armhf or i386, and those builds silently stay on tmux. The add-on logs which multiplexer it started with.
+
+| Key | Action |
+|-----|--------|
+| `Ctrl+b b` | Show/hide the sidebar |
+| `Ctrl+b c` | New tab |
+| `Ctrl+b v` | Split pane vertically |
+| `Ctrl+b h/j/k/l` | Move between panes |
+| `Ctrl+b q` | Detach (keeps the session running) |
+| `Ctrl+b ?` | Full keybinding help |
+
+#### Customizing herdr
+
+The first start copies the shipped defaults to `/homeassistant/.claudecode/herdr.toml` and reads the config from there, so your edits survive restarts, rebuilds and reinstalls. Apply changes with `herdr server reload-config`.
+
+```bash
+# native browser selection and copy/paste, at the cost of herdr's mouse UI
+echo -e '[ui]\nmouse_capture = false' >> /homeassistant/.claudecode/herdr.toml
+
+# match the light terminal theme
+echo -e '[theme]\nname = "catppuccin-latte"' >> /homeassistant/.claudecode/herdr.toml
+```
+
+Delete the file to get the add-on defaults back on the next start. Full reference: <https://herdr.dev/docs/config-reference/>.
+
+Scrollback lives inside herdr rather than the browser, so use the mouse wheel or the pane scrollbar instead of the browser scrollbar.
+
 ### Scrolling and Session Persistence Trade-offs
 
 **With tmux (`session_persistence: true`):**
@@ -183,7 +230,15 @@ If clicking the link doesn't work, hold `Ctrl+Shift` while selecting the URL wit
 - ✅ 20,000 line scrollback buffer
 - ⚠️ Use middle-click or Shift+Insert to paste (right-click paste may not work)
 
-**Without tmux (`session_persistence: false`):**
+**With herdr (`terminal_multiplexer: herdr`):**
+- ✅ Everything tmux gives you, plus:
+- ✅ Sidebar shows whether Claude is working, blocked or idle
+- ✅ Claude can drive panes and other agents through `herdr` / the socket API
+- ✅ Layout and scrollback come back on reattach
+- ⚠️ Scrollback is herdr's, not the browser's
+- ⚠️ amd64 and aarch64 only
+
+**Without a multiplexer (`session_persistence: false`):**
 - ✅ Native browser scrolling
 - ✅ Simpler terminal behavior
 - ✅ Standard copy/paste behavior
@@ -192,6 +247,7 @@ If clicking the link doesn't work, hold `Ctrl+Shift` while selecting the URL wit
 
 **Recommendation:**
 - Use `session_persistence: true` (default) if you run long tasks or need to survive disconnects
+- Add `terminal_multiplexer: herdr` if you want to see when Claude is waiting on you
 - Use `session_persistence: false` if you need standard copy/paste behavior
 
 ## Security

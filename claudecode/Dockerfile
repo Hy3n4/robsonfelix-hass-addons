@@ -55,6 +55,28 @@ RUN case "${BUILD_ARCH}" in \
         "https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.${TTYD_ARCH}" -o /usr/bin/ttyd && \
     chmod +x /usr/bin/ttyd
 
+# Install herdr, the optional alternative to tmux (terminal_multiplexer: herdr).
+# Upstream publishes statically linked musl binaries, so they run on the Alpine
+# base as-is - but only for x86_64 and aarch64. The other arches keep tmux; the
+# runtime falls back automatically when the binary is absent.
+# Pinned on purpose: herdr's client and server must speak the same protocol, and
+# an unpinned download could swap the server out from under a running add-on.
+ARG HERDR_VERSION=0.8.0
+RUN case "${BUILD_ARCH}" in \
+        amd64) HERDR_ARCH="x86_64" ;; \
+        aarch64) HERDR_ARCH="aarch64" ;; \
+        *) HERDR_ARCH="" ;; \
+    esac && \
+    if [ -n "$HERDR_ARCH" ]; then \
+        curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors \
+            "https://github.com/herdrdev/herdr/releases/download/v${HERDR_VERSION}/herdr-linux-${HERDR_ARCH}" \
+            -o /usr/local/bin/herdr && \
+        chmod +x /usr/local/bin/herdr && \
+        herdr --version; \
+    else \
+        echo "[WARN] herdr is not published for ${BUILD_ARCH}; terminal_multiplexer: herdr will fall back to tmux"; \
+    fi
+
 # Install Claude Code.
 # 2.1.113 replaced the JS entrypoint with a Bun-compiled native binary, whose
 # JavaScriptCore requires AVX. Hosts that lack it - notably VMs exposing the
@@ -116,6 +138,7 @@ RUN mkdir -p \
 # COPY works on every builder and needs no syntax image.
 COPY rootfs/root/.tmux.conf /root/.tmux.conf
 COPY rootfs/root/.bashrc /root/.bashrc
+COPY rootfs/root/.config/herdr/config.toml /root/.config/herdr/config.toml
 
 # Ensure .bashrc is sourced for login shells too
 RUN echo 'source ~/.bashrc' > /root/.profile
@@ -202,6 +225,7 @@ CMD ["/bin/bash", "-c", "\
   FONT_SIZE=$(jq -r '.terminal_font_size // 14' /data/options.json) && \
   THEME=$(jq -r '.terminal_theme // \"dark\"' /data/options.json) && \
   SESSION_PERSIST=$(jq -r 'if .session_persistence == null then true else .session_persistence end' /data/options.json) && \
+  MULTIPLEXER=$(jq -r 'if .terminal_multiplexer == null then \"tmux\" else .terminal_multiplexer end' /data/options.json) && \
   ENABLE_MCP=$(jq -r 'if .enable_mcp == null then true else .enable_mcp end' /data/options.json) && \
   ENABLE_PLAYWRIGHT=$(jq -r '.enable_playwright_mcp // false' /data/options.json) && \
   PLAYWRIGHT_HOST=$(jq -r '.playwright_cdp_host // \"\"' /data/options.json) && \
@@ -287,10 +311,22 @@ CMD ["/bin/bash", "-c", "\
   else \
     COLORS='background=#eff1f5,foreground=#4c4f69,cursor=#dc8a78'; \
   fi && \
-  if [ \"$SESSION_PERSIST\" = \"true\" ]; then \
-    SHELL_CMD='tmux new-session -A -s claude'; \
-  else \
+  if [ \"$SESSION_PERSIST\" != \"true\" ]; then \
     SHELL_CMD='bash --login'; \
+    echo '[INFO] Session persistence disabled'; \
+  elif [ \"$MULTIPLEXER\" = \"herdr\" ] && [ -x /usr/local/bin/herdr ]; then \
+    [ -f $PERSIST_DIR/herdr.toml ] || cp /root/.config/herdr/config.toml $PERSIST_DIR/herdr.toml; \
+    export HERDR_CONFIG_PATH=$PERSIST_DIR/herdr.toml; \
+    SHELL_CMD='herdr --session claude'; \
+    echo \"[INFO] Session persistence: $(herdr --version)\"; \
+    echo \"[INFO] herdr config: $PERSIST_DIR/herdr.toml\"; \
+  else \
+    if [ \"$MULTIPLEXER\" = \"herdr\" ]; then \
+      echo '[WARN] herdr is not installed in this image - upstream publishes binaries'; \
+      echo '[WARN] only for amd64 and aarch64. Falling back to tmux.'; \
+    fi; \
+    SHELL_CMD='tmux new-session -A -s claude'; \
+    echo '[INFO] Session persistence: tmux'; \
   fi && \
   if [ \"$REMOTE_CONTROL\" = \"true\" ]; then export CLAUDE_REMOTE_CONTROL_SESSION_NAME_PREFIX=\"$RC_SESSION_PREFIX\"; fi && \
   cd /homeassistant && \
