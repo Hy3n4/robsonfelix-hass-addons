@@ -164,11 +164,14 @@ Since tmux captures mouse events, copy/paste works differently:
 
 | Action | How to do it |
 |--------|--------------|
-| **Copy** | Hold `Ctrl+Shift` while selecting text with mouse |
+| **Copy** | Select with the mouse - tmux sends the selection to your computer's clipboard |
+| **Copy (alternative)** | Hold `Ctrl+Shift` while selecting, to select in the browser instead |
 | **Paste** | `Shift+Insert` or middle-click |
 | **Alternative paste** | `Ctrl+Shift+V` (browser dependent) |
 
-**Note**: Regular right-click paste and simple mouse selection won't work because tmux intercepts these events for scrolling.
+**Note**: Regular right-click paste won't work because tmux intercepts those events for scrolling.
+
+Copying reaches your computer because tmux is configured with `set-clipboard on` and the add-on teaches the browser terminal to accept it - see [How copying works](#how-copying-works).
 
 #### Authenticating Claude Code (first launch)
 
@@ -179,7 +182,7 @@ The authentication URL can be long and may wrap across multiple lines. To handle
 3. Complete authentication in the browser and **copy the auth code**
 4. Click back on the terminal and **paste** with `Shift+Insert` or `Ctrl+Shift+V`
 
-If clicking the link doesn't work, hold `Ctrl+Shift` while selecting the URL with your mouse to copy it, then paste it into your browser's address bar.
+If clicking the link doesn't work, select the URL with your mouse — that copies it to your clipboard — and paste it into your browser's address bar.
 
 ### herdr
 
@@ -219,34 +222,29 @@ Delete the file to get the add-on defaults back on the next start. Full referenc
 
 #### Copy and Paste in herdr
 
-**Pasting always works.** `Ctrl+V` / `Cmd+V` (or right-click → Paste) pastes your computer's clipboard into any pane, Claude Code included.
+| Action | How to do it |
+|--------|--------------|
+| **Copy** | Just select the text - herdr copies on select and shows a "Copied to clipboard" toast |
+| **Paste** | `Ctrl+V` / `Cmd+V` |
 
-**Copying depends on what has focus:**
+The copy goes to the clipboard of the machine running the browser, so you can paste it into any other application. See [How copying works](#how-copying-works) for why that needs help from the add-on.
 
-| Focused pane | How to copy |
-|--------------|-------------|
-| Shell prompt | Select with the mouse, then `Ctrl+C` / `Cmd+C`, or right-click → Copy |
-| Claude Code, or any full-screen app that uses the mouse (`lazygit`, `btop`, `vim` with mouse on) | Not directly — see below |
+To select without copying immediately, set `copy_on_select = false` in `herdr.toml`; the selection then survives until `Ctrl+C`.
 
-The add-on ships herdr with `mouse_capture = false` so the browser keeps the mouse and ordinary selection works. But herdr still hands the mouse to a pane application that asks for it, and Claude Code asks. While it has focus, selecting shows herdr's "Copied to clipboard" toast — and that copy is real, but it lands in herdr's clipboard *inside the container*. Getting it to your computer needs the OSC 52 escape sequence, and the ttyd this add-on ships (1.7.7, the newest release) has no clipboard addon to receive it, so the text never arrives and you paste whatever you had before. Holding Shift while dragging does not help on macOS either, where xterm.js only force-selects on Shift for non-Mac clients.
+### How copying works
 
-The mouse grab is per pane, so a second pane is the way out. To copy something out of Claude Code:
+A program running in a terminal cannot reach the clipboard of the machine you are sitting at by itself. It asks the terminal to do it, using an escape sequence called **OSC 52**. tmux and herdr both emit it when you copy.
 
-```bash
-# Ctrl+b v to split, then in the new shell pane:
-herdr pane list                       # find the Claude pane's id, e.g. w1:p1
-herdr pane read w1:p1 --source recent-unwrapped --lines 100
-```
+The terminal here is ttyd in your browser, and ttyd only gained clipboard support after 1.7.7 — which is still its newest release. So on a stock ttyd every copy you make is parsed and thrown away, and pasting elsewhere gives you whatever you had before.
 
-Select that output normally and `Cmd+C` — the shell pane does not take the mouse. `Ctrl+b e` also opens a pane's full scrollback in an editor.
+Rather than build ttyd from an unreleased commit, the add-on adds the missing piece to the page ttyd serves. ttyd serves one self-contained HTML file and accepts a replacement with `--index`, so the image build fetches that page from ttyd itself and appends a small script that registers an OSC 52 handler on the terminal. Copies then land on your clipboard, in both tmux and herdr.
 
-The other cost of `mouse_capture = false` is herdr's own mouse UI: no clicking the sidebar, no wheel scrolling. Everything stays reachable from the keyboard with `Ctrl+b`. If you would rather have the mouse UI, put this in `herdr.toml` and restart:
+Two details worth knowing:
 
-```toml
-[ui]
-mouse_capture = true
-pane_scrollbars = true
-```
+- Clipboard writes normally require a secure context, which Home Assistant over plain `http://` on a LAN address is not. The script falls back to the legacy copy path, which works there because the copy immediately follows the click that selected the text.
+- An empty OSC 52 officially means "clear the clipboard". The script ignores those, so a stray click cannot throw away what you copied.
+
+The script lives at [`rootfs/opt/ttyd/osc52.js`](rootfs/opt/ttyd/osc52.js). If a future ttyd release bundles `@xterm/addon-clipboard`, this can be dropped for a version bump.
 
 ### Scrolling and Session Persistence Trade-offs
 
@@ -263,10 +261,8 @@ pane_scrollbars = true
 - ✅ Sidebar shows whether Claude is working, blocked or idle
 - ✅ Claude can drive panes and other agents through `herdr` / the socket API
 - ✅ Layout and scrollback come back on reattach
-- ✅ Normal browser copy/paste at the shell - no `Shift+Insert` gymnastics
-- ⚠️ Copying out of Claude Code needs a second pane and `herdr pane read`
-- ⚠️ No mouse UI by default: keyboard (`Ctrl+b`) drives the sidebar and panes
-- ⚠️ No wheel scrolling; `Ctrl+b e` opens the scrollback in an editor
+- ✅ Select to copy, straight to your computer's clipboard - no `Shift+Insert` gymnastics
+- ✅ Clickable sidebar and wheel scrolling
 - ⚠️ amd64 and aarch64 only
 
 **Without a multiplexer (`session_persistence: false`):**
@@ -303,7 +299,7 @@ Claude Code manages its own authentication. If you have issues:
 2. Follow the prompts to log in or enter your API key
 3. Credentials are saved automatically for future sessions
 
-**Can't copy the URL or paste the auth code?** In the default tmux mode the multiplexer captures the mouse, which changes how copy/paste works - see [Copy and Paste in tmux](#copy-and-paste-in-tmux). With `terminal_multiplexer: herdr` the browser keeps the mouse, so ordinary select and `Ctrl+C` / `Cmd+C` work; see [Copy and Paste in herdr](#copy-and-paste-in-herdr).
+**Can't copy the URL or paste the auth code?** Selecting text copies it to your computer's clipboard in both multiplexers, but pasting *into* the terminal differs: tmux needs `Shift+Insert`, herdr takes an ordinary `Ctrl+V` / `Cmd+V`. See [Copy and Paste in tmux](#copy-and-paste-in-tmux) and [Copy and Paste in herdr](#copy-and-paste-in-herdr). If a copy does not arrive at all, check [How copying works](#how-copying-works).
 
 ### hass-mcp not working
 

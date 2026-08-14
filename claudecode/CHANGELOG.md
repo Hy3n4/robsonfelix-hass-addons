@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.2.66] - 2026-08-14
+## [1.2.67] - 2026-08-14
 
 ### Added
 - `terminal_multiplexer` option, `tmux` (default) or `herdr`. It only applies when `session_persistence` is on, so existing installs keep the exact behaviour they have today
@@ -11,9 +11,16 @@ All notable changes to this project will be documented in this file.
 
 - herdr `v0.8.0` is installed to `/usr/local/bin/herdr` on `amd64` and `aarch64`. Upstream ships statically linked musl binaries, so they run on the Alpine base with no extra libraries. The version is pinned deliberately: herdr's client and server must speak the same protocol, and an unpinned download could replace the server under a running session
 - Defaults ship in `rootfs/root/.config/herdr/config.toml` and are copied once to `/homeassistant/.claudecode/herdr.toml`, which is then used via `HERDR_CONFIG_PATH`. Edits there survive restarts, rebuilds and reinstalls, mirroring how `tmux.conf` overrides work. Panes are login `bash` so the `c`, `cc`, `ha-config` and `ha-logs` aliases exist inside them, the sidebar starts collapsed to leave room in the Home Assistant panel, and herdr's own update check is off because the add-on pins the binary
-- herdr ships with `mouse_capture = false` so copy and paste at the shell prompt use the browser and reach your local clipboard. This does not extend to panes running a full-screen app that requests the mouse - Claude Code included: herdr honours the application's request, takes the mouse back, and its copy then has no route out of the container. The grab is per pane, so `herdr pane read <pane-id>` in a split shell pane makes that text selectable. Verified against ttyd 1.7.7: a valid `OSC 52` write leaves the browser clipboard untouched, and a pane that enables `1002`/`1003` motion tracking suppresses browser selection while focused A program inside the terminal can only reach that clipboard through OSC 52, and ttyd 1.7.7 - the latest release - bundles no `@xterm/addon-clipboard` to receive it, so with the mouse captured a copy never leaves the container and the paste target keeps its previous contents. Shift+drag is not a workaround: xterm.js only force-selects on Shift for non-macOS clients. The trade-off is herdr's mouse UI, which `[ui] mouse_capture = true` restores; keyboard control is unaffected either way
-- `pane_scrollbars = false` for the same reason, so the scrollbar column does not end up inside copied text
 - Startup logs which multiplexer it selected
+
+### Fixed
+- Copying text in the terminal now reaches the clipboard of the machine running the browser, in both tmux and herdr. Previously every copy was silently discarded and pasting elsewhere returned the clipboard's previous contents
+
+  A program in a terminal reaches that clipboard through `OSC 52`, and ttyd only gained `@xterm/addon-clipboard` after 1.7.7, which is still its newest release - so ttyd parsed those sequences and dropped them. Instead of building ttyd from an unreleased commit, the image build fetches ttyd's own self-contained page, appends `rootfs/opt/ttyd/osc52.js` to it and serves the result with `--index`. The script registers an OSC 52 handler on the terminal and writes to the clipboard, falling back to the legacy copy path on plain `http://` origins, where the Clipboard API is unavailable because the page is not a secure context. Empty payloads are ignored rather than honoured as "clear the clipboard", so a stray click cannot discard what you copied. Clipboard *reads* (`OSC 52` with `?`) are refused, since any process in the terminal could otherwise exfiltrate the clipboard
+
+  Verified against the shipped versions: herdr copy-on-select and `tmux load-buffer -w` both land on the browser clipboard, over a secure origin and over a non-secure `http://` origin
+
+- tmux is configured with `set-clipboard on` and `terminal-features ',xterm*:clipboard'`, so selecting text sends it to your clipboard instead of only tmux's internal buffer
 
 ### Changed
 - `session_persistence` is no longer described as a tmux-only switch in the UI and translations; it now toggles persistence regardless of which multiplexer runs it

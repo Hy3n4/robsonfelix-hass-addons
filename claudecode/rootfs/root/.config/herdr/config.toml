@@ -23,17 +23,9 @@ version_check = false
 # The Home Assistant sidebar panel is narrow; start with room for the terminal.
 sidebar_start_collapsed = true
 
-# Off so the browser keeps the mouse and copy/paste works against your local
-# clipboard. A remote TUI can only reach it through OSC 52, and the ttyd this
-# add-on ships (1.7.7) has no clipboard addon, so anything herdr copies while it
-# owns the mouse cannot leave the container. Shift+drag does not help either:
-# xterm.js only force-selects on Shift for non-macOS clients.
+# herdr keeps the mouse, so its sidebar is clickable and selecting text copies
+# through OSC 52. The add-on teaches ttyd's terminal to receive that, so copies
+# reach the clipboard of the machine running the browser.
 #
-# Set true for herdr's mouse UI - clickable sidebar and wheel scrolling - and
-# lose selection and copy/paste in the browser. Keyboard control (Ctrl+b) is
-# unaffected either way.
-mouse_capture = false
-
-# The scrollbar column would otherwise land inside terminal-native selections
-# and end up in whatever you copy.
-pane_scrollbars = false
+# Set false to hand the mouse to the browser instead and use native selection.
+mouse_capture = true

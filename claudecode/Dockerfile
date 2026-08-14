@@ -55,6 +55,30 @@ RUN case "${BUILD_ARCH}" in \
         "https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.${TTYD_ARCH}" -o /usr/bin/ttyd && \
     chmod +x /usr/bin/ttyd
 
+# Teach ttyd's terminal to honour OSC 52, the escape sequence tmux and herdr use
+# to put a copied selection on the clipboard of the machine running the browser.
+# ttyd only gained @xterm/addon-clipboard after 1.7.7, its newest release, so
+# until there is a release to upgrade to the handler is added client-side.
+# ttyd serves one self-contained page and takes a replacement via --index, so
+# the page is fetched from ttyd itself and the handler appended to it.
+COPY rootfs/opt/ttyd/osc52.js /opt/ttyd/osc52.js
+RUN set -e; \
+    ttyd --port 7699 --interface 127.0.0.1 true & \
+    TTYD_PID=$!; \
+    for _ in $(seq 1 50); do \
+        curl -fsS http://127.0.0.1:7699/ -o /tmp/ttyd-index.html && break; \
+        sleep 0.2; \
+    done; \
+    kill "${TTYD_PID}" 2>/dev/null || true; \
+    python3 -c "\
+import pathlib, sys;\
+html = pathlib.Path('/tmp/ttyd-index.html').read_text();\
+js = pathlib.Path('/opt/ttyd/osc52.js').read_text();\
+sys.exit('ttyd index.html has no </body> to inject into') if '</body>' not in html else None;\
+pathlib.Path('/opt/ttyd/index.html').write_text(html.replace('</body>', '<script>' + js + '</script></body>', 1))"; \
+    rm -f /tmp/ttyd-index.html; \
+    grep -q registerOscHandler /opt/ttyd/index.html
+
 # Install herdr, the optional alternative to tmux (terminal_multiplexer: herdr).
 # Upstream publishes statically linked musl binaries, so they run on the Alpine
 # base as-is - but only for x86_64 and aarch64. The other arches keep tmux; the
@@ -330,7 +354,14 @@ CMD ["/bin/bash", "-c", "\
   fi && \
   if [ \"$REMOTE_CONTROL\" = \"true\" ]; then export CLAUDE_REMOTE_CONTROL_SESSION_NAME_PREFIX=\"$RC_SESSION_PREFIX\"; fi && \
   cd /homeassistant && \
+  TTYD_INDEX=''; \
+  if [ -f /opt/ttyd/index.html ]; then \
+    TTYD_INDEX='--index /opt/ttyd/index.html'; \
+  else \
+    echo '[WARN] OSC 52 clipboard support is missing - copy will not reach your computer'; \
+  fi && \
   exec ttyd --port 7681 --writable --ping-interval 30 --max-clients 5 \
+    $TTYD_INDEX \
     -t fontSize=$FONT_SIZE \
     -t fontFamily=Monaco,Consolas,monospace \
     -t scrollback=20000 \
