@@ -208,17 +208,33 @@ Only amd64 and aarch64 are supported - upstream publishes no binaries for armv7,
 
 The first start copies the shipped defaults to `/homeassistant/.claudecode/herdr.toml` and reads the config from there, so your edits survive restarts, rebuilds and reinstalls. Apply changes with `herdr server reload-config`.
 
-```bash
-# native browser selection and copy/paste, at the cost of herdr's mouse UI
-echo -e '[ui]\nmouse_capture = false' >> /homeassistant/.claudecode/herdr.toml
+Edit it with `nano /homeassistant/.claudecode/herdr.toml`, for example to match the light terminal theme:
 
-# match the light terminal theme
-echo -e '[theme]\nname = "catppuccin-latte"' >> /homeassistant/.claudecode/herdr.toml
+```toml
+[theme]
+name = "catppuccin-latte"
 ```
 
 Delete the file to get the add-on defaults back on the next start. Full reference: <https://herdr.dev/docs/config-reference/>.
 
-Scrollback lives inside herdr rather than the browser, so use the mouse wheel or the pane scrollbar instead of the browser scrollbar.
+#### Copy and Paste in herdr
+
+Copy and paste are the browser's, so they behave like any other web page:
+
+| Action | How to do it |
+|--------|--------------|
+| **Copy** | Select with the mouse, then `Ctrl+C` / `Cmd+C`, or right-click → Copy |
+| **Paste** | `Ctrl+V` / `Cmd+V`, or right-click → Paste |
+
+This works because the add-on ships herdr with `mouse_capture = false`. A program running inside a terminal can only reach your computer's clipboard through an escape sequence called OSC 52, and the ttyd this add-on ships (1.7.7, the latest release) has no clipboard addon to receive it — so if herdr owns the mouse, anything you "copy" never leaves the container and you paste whatever was in your clipboard before. Holding Shift while dragging does not help on macOS, where xterm.js only force-selects on Shift for non-Mac clients.
+
+The cost is herdr's mouse UI: you cannot click the sidebar or wheel-scroll a pane. Everything is still reachable from the keyboard with `Ctrl+b`, and `Ctrl+b e` opens the full pane scrollback in an editor. If you would rather have the mouse UI than working copy/paste, put this in `herdr.toml` and restart:
+
+```toml
+[ui]
+mouse_capture = true
+pane_scrollbars = true
+```
 
 ### Scrolling and Session Persistence Trade-offs
 
@@ -235,7 +251,9 @@ Scrollback lives inside herdr rather than the browser, so use the mouse wheel or
 - ✅ Sidebar shows whether Claude is working, blocked or idle
 - ✅ Claude can drive panes and other agents through `herdr` / the socket API
 - ✅ Layout and scrollback come back on reattach
-- ⚠️ Scrollback is herdr's, not the browser's
+- ✅ Normal browser copy/paste - no `Shift+Insert` gymnastics
+- ⚠️ No mouse UI by default: keyboard (`Ctrl+b`) drives the sidebar and panes
+- ⚠️ No wheel scrolling; `Ctrl+b e` opens the scrollback in an editor
 - ⚠️ amd64 and aarch64 only
 
 **Without a multiplexer (`session_persistence: false`):**
@@ -272,7 +290,7 @@ Claude Code manages its own authentication. If you have issues:
 2. Follow the prompts to log in or enter your API key
 3. Credentials are saved automatically for future sessions
 
-**Can't copy the URL or paste the auth code?** The terminal uses tmux, which changes how copy/paste works. See [Copy and Paste in tmux](#copy-and-paste-in-tmux) for instructions.
+**Can't copy the URL or paste the auth code?** In the default tmux mode the multiplexer captures the mouse, which changes how copy/paste works - see [Copy and Paste in tmux](#copy-and-paste-in-tmux). With `terminal_multiplexer: herdr` the browser keeps the mouse, so ordinary select and `Ctrl+C` / `Cmd+C` work; see [Copy and Paste in herdr](#copy-and-paste-in-herdr).
 
 ### hass-mcp not working
 

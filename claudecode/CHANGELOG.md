@@ -11,6 +11,8 @@ All notable changes to this project will be documented in this file.
 
 - herdr `v0.8.0` is installed to `/usr/local/bin/herdr` on `amd64` and `aarch64`. Upstream ships statically linked musl binaries, so they run on the Alpine base with no extra libraries. The version is pinned deliberately: herdr's client and server must speak the same protocol, and an unpinned download could replace the server under a running session
 - Defaults ship in `rootfs/root/.config/herdr/config.toml` and are copied once to `/homeassistant/.claudecode/herdr.toml`, which is then used via `HERDR_CONFIG_PATH`. Edits there survive restarts, rebuilds and reinstalls, mirroring how `tmux.conf` overrides work. Panes are login `bash` so the `c`, `cc`, `ha-config` and `ha-logs` aliases exist inside them, the sidebar starts collapsed to leave room in the Home Assistant panel, and herdr's own update check is off because the add-on pins the binary
+- herdr ships with `mouse_capture = false` so copy and paste use the browser and reach your local clipboard. A program inside the terminal can only reach that clipboard through OSC 52, and ttyd 1.7.7 - the latest release - bundles no `@xterm/addon-clipboard` to receive it, so with the mouse captured a copy never leaves the container and the paste target keeps its previous contents. Shift+drag is not a workaround: xterm.js only force-selects on Shift for non-macOS clients. The trade-off is herdr's mouse UI, which `[ui] mouse_capture = true` restores; keyboard control is unaffected either way
+- `pane_scrollbars = false` for the same reason, so the scrollbar column does not end up inside copied text
 - Startup logs which multiplexer it selected
 
 ### Changed
