@@ -36,12 +36,15 @@ profile claudecode flags=(attach_disconnected,mediate_deleted) {
   /bin/** ixr,
   /usr/bin/** ixr,
   /usr/lib/** ixmr,
-  /usr/local/** ixr,
+  /usr/local/** ixmr,
   # npm's global prefix. Only these two subtrees are writable, so `npm -g` can
   # install and update Claude Code; without w it fails with EACCES on rename
   # even as root. The rest of /usr/local stays read-only.
-  /usr/local/bin/** rwixk,
-  /usr/local/lib/node_modules/** rwixk,
+  # m is required as well: Claude Code is a Bun-compiled native binary that maps
+  # its own file executable, and without it exec fails with "Permission denied".
+  # It grants nothing new in practice - these paths already carry x.
+  /usr/local/bin/** rwixmk,
+  /usr/local/lib/node_modules/** rwixmk,
   /usr/libexec/** ixr,
 
   # Add-on data

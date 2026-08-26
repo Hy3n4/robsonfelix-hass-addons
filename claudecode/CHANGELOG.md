@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.69] - 2026-08-14
+
+### Fixed
+- `claude` failed with `/usr/local/bin/claude: Permission denied`. AppArmor granted `rwixk` on npm's global prefix - execute but not `m`, the permission to map a file executable. Since 2.1.113 Claude Code is a Bun-compiled native binary that maps its own file, so exec was refused. The same profile already grants `ixmr` for `/usr/lib/node_modules/**`, so the missing `m` on the `/usr/local` rules was an oversight rather than a decision; `m` grants nothing new here, since those paths already carry `x`
+
+  The build could not catch this: `install-claude.sh` smoke-tests `claude --version` during the image build, where no AppArmor profile is applied. Note that `/usr/local/bin/claude` is only a symlink into `/usr/local/lib/node_modules/@anthropic-ai/claude-code/`, where a `postinstall` places the platform binary from `@anthropic-ai/claude-code-linux-<arch>-musl`, so both rules need it
+
 ## [1.2.68] - 2026-08-14
 
 ### Fixed
